@@ -1,12 +1,17 @@
-#Codigó principal para análisis de volatilidad de divisas usando Yahoo Finance.
+# Codigó principal para análisis de volatilidad de divisas usando Yahoo Finance.
 
 import yfinance as yf
 import pandas as pd
 import numpy as np
+import logging
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timedelta
 from typing import Optional
 import warnings
+
 warnings.filterwarnings("ignore")
+
+logger = logging.getLogger(__name__)
 
 
 # ─── Pares de divisas más comunes ───────────────────────────────────────────
@@ -26,12 +31,12 @@ FOREX_PAIRS = {
 }
 
 PERIODS = {
-    "1w":  {"days": 7,   "label": "1 Semana"},
-    "1m":  {"days": 30,  "label": "1 Mes"},
-    "3m":  {"days": 90,  "label": "3 Meses"},
-    "6m":  {"days": 180, "label": "6 Meses"},
-    "1y":  {"days": 365, "label": "1 Año"},
-    "2y":  {"days": 730, "label": "2 Años"},
+    "1w": {"days": 7, "label": "1 Semana"},
+    "1m": {"days": 30, "label": "1 Mes"},
+    "3m": {"days": 90, "label": "3 Meses"},
+    "6m": {"days": 180, "label": "6 Meses"},
+    "1y": {"days": 365, "label": "1 Año"},
+    "2y": {"days": 730, "label": "2 Años"},
 }
 
 
@@ -94,7 +99,9 @@ class ForexVolatilityAnalyzer:
             df = yf.download(ticker, start=start_date, end=end_date, progress=False)
         else:
             if period not in PERIODS:
-                raise ValueError(f"Período '{period}' no válido. Usa: {list(PERIODS.keys())}")
+                raise ValueError(
+                    f"Período '{period}' no válido. Usa: {list(PERIODS.keys())}"
+                )
             days = PERIODS[period]["days"]
             end = datetime.today()
             start = end - timedelta(days=days)
@@ -131,9 +138,11 @@ class ForexVolatilityAnalyzer:
 
         # Volatilidad histórica (rolling)
         result["volatility_daily"] = result["log_return"].rolling(window=window).std()
-        result["volatility_annual"] = result["volatility_daily"] * np.sqrt(self.annualization_factor)
+        result["volatility_annual"] = result["volatility_daily"] * np.sqrt(
+            self.annualization_factor
+        )
 
-        # Retorno acumulado 
+        # Retorno acumulado
         result["cumulative_return"] = (1 + result["log_return"]).cumprod() - 1
 
         # ATR - Average True Range
@@ -144,14 +153,16 @@ class ForexVolatilityAnalyzer:
         result["atr"] = result["true_range"].rolling(window=window).mean()
         result.drop(columns=["tr1", "tr2", "tr3"], inplace=True)
 
-        # Bandas de Bollinger 
+        # Bandas de Bollinger
         result["bb_mid"] = result["Close"].rolling(window=window).mean()
         bb_std = result["Close"].rolling(window=window).std()
         result["bb_upper"] = result["bb_mid"] + 2 * bb_std
         result["bb_lower"] = result["bb_mid"] - 2 * bb_std
-        result["bb_width"] = (result["bb_upper"] - result["bb_lower"]) / result["bb_mid"]
+        result["bb_width"] = (result["bb_upper"] - result["bb_lower"]) / result[
+            "bb_mid"
+        ]
 
-        # Drawdown máximo 
+        # Drawdown máximo
         rolling_max = result["Close"].cummax()
         result["drawdown"] = (result["Close"] - rolling_max) / rolling_max
 
@@ -178,11 +189,13 @@ class ForexVolatilityAnalyzer:
         Returns:
             VolatilityReport con todos los resultados y métodos de visualización
         """
-        print(f" Descargando datos para {pair}...")
+        logger.info(f"Descargando datos para {pair}...")
         df = self.fetch_data(pair, period, start_date, end_date)
-        print(f" {len(df)} registros obtenidos ({df.index[0].date()} → {df.index[-1].date()})")
+        logger.info(
+            f"{len(df)} registros obtenidos ({df.index[0].date()} → {df.index[-1].date()})"
+        )
 
-        print("  Calculando métricas de volatilidad...")
+        logger.info("Calculando métricas de volatilidad...")
         metrics_df = self.calculate_volatility(df, window=window)
 
         return VolatilityReport(
@@ -199,7 +212,7 @@ class ForexVolatilityAnalyzer:
         window: int = 20,
     ) -> pd.DataFrame:
         """
-        Compara la volatilidad anualizada de múltiples pares.
+        Compara la volatilidad anualizada de múltiples pares usando ejecución paralela.
 
         Args:
             pairs: Lista de pares (ej: ['EURUSD', 'GBPUSD', 'USDCOP'])
@@ -210,13 +223,23 @@ class ForexVolatilityAnalyzer:
             DataFrame resumen con métricas por par
         """
         results = []
-        for pair in pairs:
+
+        def _analyze_pair(pair):
             try:
                 report = self.analyze(pair, period, window)
-                summary = report.get_summary_dict()
-                results.append(summary)
+                return report.get_summary_dict()
             except Exception as e:
-                print(f"  Error en {pair}: {e}")
+                logger.error(f"Error en {pair}: {e}")
+                return None
+
+        with ThreadPoolExecutor() as executor:
+            future_to_pair = {
+                executor.submit(_analyze_pair, pair): pair for pair in pairs
+            }
+            for future in as_completed(future_to_pair):
+                res = future.result()
+                if res:
+                    results.append(res)
 
         if not results:
             raise ValueError("No se pudo obtener datos para ningún par.")
@@ -239,7 +262,7 @@ class VolatilityReport:
         self._last = data.dropna().iloc[-1]  # última fila con métricas completas
 
     def summary(self) -> str:
-        #Devuelve un resumen de texto con las métricas principales.
+        # Devuelve un resumen de texto con las métricas principales.
         d = self._last
         start = self.data.index[0].strftime("%Y-%m-%d")
         end = self.data.index[-1].strftime("%Y-%m-%d")
@@ -257,20 +280,20 @@ class VolatilityReport:
             f"  Retorno total     : {total_return:+.2f}%",
             f"  Drawdown máximo   : {max_dd:.2f}%",
             f"{'─' * 55}",
-            f"  Volatilidad diaria  (rolling {self.window}d) : {d['volatility_daily']*100:.3f}%",
-            f"  Volatilidad anual   (rolling {self.window}d) : {d['volatility_annual']*100:.2f}%",
+            f"  Volatilidad diaria  (rolling {self.window}d) : {d['volatility_daily'] * 100:.3f}%",
+            f"  Volatilidad anual   (rolling {self.window}d) : {d['volatility_annual'] * 100:.2f}%",
             f"  ATR ({self.window}d)                         : {d['atr']:.5f}",
             f"{'─' * 55}",
             f"  Banda Bollinger Superior : {d['bb_upper']:.5f}",
             f"  Banda Bollinger Media    : {d['bb_mid']:.5f}",
             f"  Banda Bollinger Inferior : {d['bb_lower']:.5f}",
-            f"  Ancho Bandas (BB Width)  : {d['bb_width']*100:.3f}%",
+            f"  Ancho Bandas (BB Width)  : {d['bb_width'] * 100:.3f}%",
             f"{'═' * 55}\n",
         ]
         return "\n".join(lines)
 
     def get_summary_dict(self) -> dict:
-        #Devuelve métricas como diccionario (útil para comparaciones).
+        # Devuelve métricas como diccionario (útil para comparaciones).
         d = self._last
         return {
             "pair": self.pair,
@@ -279,7 +302,9 @@ class VolatilityReport:
             "volatility_annual_pct": round(float(d["volatility_annual"]) * 100, 2),
             "atr": round(float(d["atr"]), 5),
             "bb_width_pct": round(float(d["bb_width"]) * 100, 4),
-            "cumulative_return_pct": round(float(self.data["cumulative_return"].iloc[-1]) * 100, 2),
+            "cumulative_return_pct": round(
+                float(self.data["cumulative_return"].iloc[-1]) * 100, 2
+            ),
             "max_drawdown_pct": round(float(self.data["drawdown"].min()) * 100, 2),
             "n_observations": len(self.data),
         }
