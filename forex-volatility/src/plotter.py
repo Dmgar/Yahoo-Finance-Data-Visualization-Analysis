@@ -11,19 +11,9 @@ from pathlib import Path
 from typing import Optional
 
 from volatility_analyzer import VolatilityReport
-
-
-#  Tema visual
-DARK_BG = "#0d1117"
-PANEL_BG = "#161b22"
-GRID_COLOR = "#21262d"
-TEXT_COLOR = "#e6edf3"
-ACCENT = "#58a6ff"
-GREEN = "#3fb950"
-RED = "#f85149"
-YELLOW = "#d29922"
-PURPLE = "#a371f7"
-ORANGE = "#db6d28"
+from theme import (
+    DARK_BG, PANEL_BG, GRID_COLOR, TEXT_COLOR, ACCENT, GREEN, RED, YELLOW, PURPLE, ORANGE, FONT_FAMILY
+)
 
 
 def _setup_style():
@@ -42,7 +32,7 @@ def _setup_style():
             "ytick.color": TEXT_COLOR,
             "legend.facecolor": PANEL_BG,
             "legend.edgecolor": GRID_COLOR,
-            "font.family": "monospace",
+            "font.family": FONT_FAMILY,
         }
     )
 
@@ -54,29 +44,21 @@ def plot_full_analysis(
 ) -> plt.Figure:
     """
     Genera un dashboard completo de análisis de volatilidad.
-
-    Incluye 5 paneles:
-    1. Precio con Bandas de Bollinger
-    2. Retornos diarios (log returns)
-    3. Volatilidad histórica rolling
-    4. ATR (Average True Range)
-    5. Drawdown
-
-    Args:
-        report: VolatilityReport generado por ForexVolatilityAnalyzer
-        save_path: Ruta para guardar la imagen (opcional)
-        show: Si mostrar la ventana interactiva
-
-    Returns:
-        Figura de matplotlib
     """
     _setup_style()
-    df = report.data.dropna()
+    
+    # Para el título y fechas, usamos los datos originales sin dropna()
+    # para evitar que el DataFrame quede vacío si hay indicadores con NaN.
+    full_data = report.data
+    
+    # Para el trazado, limpiamos solo las filas que son totalmente NaN o 
+    # que no tienen el precio de cierre.
+    df = full_data.dropna(subset=["Close"])
 
     fig = plt.figure(figsize=(16, 14), facecolor=DARK_BG)
     fig.suptitle(
-        f"Análisis de Volatilidad — {report.pair}   |   "
-        f"Período: {df.index[0].strftime('%Y-%m-%d')} → {df.index[-1].strftime('%Y-%m-%d')}",
+        f"Análisis de Volatilidad y Tendencias — {report.pair}   |   "
+        f"Período: {full_data.index[0].strftime('%Y-%m-%d')} → {full_data.index[-1].strftime('%Y-%m-%d')}",
         color=TEXT_COLOR,
         fontsize=14,
         fontweight="bold",
@@ -287,13 +269,16 @@ def plot_comparison(
             color=TEXT_COLOR,
         )
 
-    #  Scatter: riesgo vs retorno 
+    #  Scatter: riesgo vs retorno
     ax = axes[2]
     ax.scatter(
         df["volatility_annual_pct"],
         df["cumulative_return_pct"],
         c=[vol_color(v) for v in df["volatility_annual_pct"]],
-        s=120, edgecolors=TEXT_COLOR, linewidths=0.5, zorder=3,
+        s=120,
+        edgecolors=TEXT_COLOR,
+        linewidths=0.5,
+        zorder=3,
     )
     ax.axhline(0, color=GRID_COLOR, linewidth=0.8, linestyle="--")
     for _, row in df.iterrows():

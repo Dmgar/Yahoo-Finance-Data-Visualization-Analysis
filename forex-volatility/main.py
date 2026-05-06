@@ -17,6 +17,8 @@ sys.path.insert(0, str(Path(__file__).parent / "src"))
 
 from volatility_analyzer import ForexVolatilityAnalyzer, FOREX_PAIRS, PERIODS
 from plotter import plot_full_analysis, plot_comparison
+from interactive_plotter import plot_interactive_analysis
+from predictor import ForexPredictor
 
 
 def parse_args():
@@ -25,10 +27,10 @@ def parse_args():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Ejemplos:
-  python main.py --pair EURUSD --period 3m
-  python main.py --pair USDCOP --period 1y --window 30
+  python main.py --pair EURUSD --format png
+  python main.py --pair USDCOP --format html --indicators
+  python main.py --pair GBPUSD --format both --predict --save
   python main.py --compare --period 6m
-  python main.py --pair GBPUSD --start 2024-01-01 --end 2024-12-31 --save
         """,
     )
     parser.add_argument("--pair", type=str, help="Par de divisas (ej: EURUSD, USDCOP)")
@@ -63,6 +65,19 @@ Ejemplos:
     parser.add_argument(
         "--verbose", action="store_true", help="Habilitar salida detallada (DEBUG)"
     )
+    parser.add_argument(
+        "--format",
+        type=str,
+        default="png",
+        choices=["png", "html", "both"],
+        help="Formato de salida del gráfico (default: png)",
+    )
+    parser.add_argument(
+        "--indicators", action="store_true", help="Incluir indicadores técnicos (RSI, MACD, SMA)"
+    )
+    parser.add_argument(
+        "--predict", action="store_true", help="Generar proyecciones de tendencia y volatilidad"
+    )
     return parser.parse_args()
 
 
@@ -79,6 +94,13 @@ def list_pairs():
     print()
 
 
+def get_save_path(pair: str, period: str, fmt: str) -> str:
+    """Genera una ruta de archivo consistente basada en el formato."""
+    ext = "png" if fmt == "png" else "html"
+    suffix = "analysis" if fmt == "png" else "interactive"
+    return f"data/{pair}_{period}_{suffix}.{ext}"
+
+
 def run_single_analysis(args):
     pair = args.pair.upper() if args.pair else _prompt_pair()
     analyzer = ForexVolatilityAnalyzer()
@@ -89,13 +111,38 @@ def run_single_analysis(args):
         window=args.window,
         start_date=args.start,
         end_date=args.end,
+        include_indicators=args.indicators,
     )
 
     print(report.summary())
 
+    # --- Proyecciones ---
+    if args.predict:
+        predictor = ForexPredictor()
+        projection = predictor.get_full_projection(report)
+        trend = projection["trend"]
+        vol = projection["volatility"]
+
+        print("\n" + "═" * 55)
+        print(f"   PROYECCIONES BÁSICAS — {pair}")
+        print("═" * 55)
+        print(f"  Tendencia ({trend['days']}d)    : {trend['trend']} ({trend['pct_change']:+.2f}%)")
+        print(f"  Precio Proyectado        : {trend['projected_price']:.5f}")
+        print(f"  Rango Esperado (ATR)     : {vol['expected_lower']:.5f} → {vol['expected_upper']:.5f}")
+        print(f"  Variación Esperada       : {vol['range_pct']:.3f}%")
+        print("═" * 55 + "\n")
+
     if not args.no_plot:
-        save_path = f"data/{pair}_{args.period}_analysis.png" if args.save else None
-        plot_full_analysis(report, save_path=save_path, show=not args.save)
+        save_png = get_save_path(pair, args.period, "png") if args.save else None
+        save_html = get_save_path(pair, args.period, "html") if args.save else None
+
+        if args.format == "png":
+            plot_full_analysis(report, save_path=save_png, show=not args.save)
+        elif args.format == "html":
+            plot_interactive_analysis(report, save_path=save_html, show=not args.save)
+        elif args.format == "both":
+            plot_full_analysis(report, save_path=save_png, show=not args.save)
+            plot_interactive_analysis(report, save_path=save_html, show=not args.save)
 
 
 def run_comparison(args):

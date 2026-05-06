@@ -89,6 +89,23 @@ class TestForexVolatilityAnalyzer:
         for col in expected_cols:
             assert col in result.columns, f"Falta columna: {col}"
 
+    def test_calculate_technical_indicators_columns(self, analyzer, mock_df):
+        result = analyzer.calculate_technical_indicators(mock_df)
+        expected_cols = [
+            "sma_20",
+            "sma_50",
+            "sma_200",
+            "ema_20",
+            "ema_50",
+            "ema_200",
+            "rsi",
+            "macd",
+            "macd_signal",
+            "macd_hist",
+        ]
+        for col in expected_cols:
+            assert col in result.columns, f"Falta indicador técnico: {col}"
+
     def test_volatility_is_positive(self, analyzer, mock_df):
         result = analyzer.calculate_volatility(mock_df, window=10).dropna()
         assert (result["volatility_daily"] >= 0).all()
