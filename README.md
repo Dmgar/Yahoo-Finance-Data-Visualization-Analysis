@@ -17,9 +17,6 @@ Análisis y visualización de datos financieros obtenidos de Yahoo Finance usand
 - **Optimización:** Carga paralela de datos y sistema de logging profesional.
 - **Descarga de datos:** Extracción automatizada de datos históricos desde Yahoo Finance.
 
-
-### 🚀 Roadmap (En desarrollo)
-=======
 ### Roadmap (En desarrollo)
 - **Indicadores técnicos:** Implementación de RSI, MACD y medias móviles.
 - **Visualizaciones interactivas:** Migración a Plotly para análisis dinámicos.
