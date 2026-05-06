@@ -7,7 +7,7 @@ Análisis y visualización de datos financieros obtenidos de Yahoo Finance usand
 
 ##  Características
 
-### ✅ Implementado
+### Implementado
 - **Análisis de volatilidad de divisas (Forex):** Cálculo de volatilidad histórica, ATR, Bandas de Bollinger, Drawdown y Retorno acumulado.
 - **Indicadores Técnicos Avanzados:** Implementación de RSI, MACD y Medias Móviles (SMA/EMA 20, 50, 200).
 - **Visualizaciones Profesionales:** 
@@ -17,7 +17,12 @@ Análisis y visualización de datos financieros obtenidos de Yahoo Finance usand
 - **Optimización:** Carga paralela de datos y sistema de logging profesional.
 - **Descarga de datos:** Extracción automatizada de datos históricos desde Yahoo Finance.
 
+
 ### 🚀 Roadmap (En desarrollo)
+=======
+### Roadmap (En desarrollo)
+- **Indicadores técnicos:** Implementación de RSI, MACD y medias móviles.
+- **Visualizaciones interactivas:** Migración a Plotly para análisis dinámicos.
 - **Análisis fundamental:** Módulo para análisis de estados financieros de empresas.
 - **Modelos predictivos avanzados:** Implementación de modelos de series temporales (ARIMA/LSTM).
 
