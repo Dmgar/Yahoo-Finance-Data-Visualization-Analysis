@@ -1,4 +1,4 @@
-#Punto de entrada CLI para el análisis de volatilidad de divisas.
+# Punto de entrada CLI para el análisis de volatilidad de divisas.
 """
 Uso:
     python main.py                              # Análisis interactivo
@@ -9,6 +9,7 @@ Uso:
 
 import argparse
 import sys
+import logging
 from pathlib import Path
 
 # Asegurar que src/ esté en el path
@@ -30,21 +31,49 @@ Ejemplos:
   python main.py --pair GBPUSD --start 2024-01-01 --end 2024-12-31 --save
         """,
     )
-    parser.add_argument("--pair",    type=str, help="Par de divisas (ej: EURUSD, USDCOP)")
-    parser.add_argument("--period",  type=str, default="3m", choices=list(PERIODS.keys()), help="Período de análisis")
-    parser.add_argument("--window",  type=int, default=20, help="Ventana para métricas rolling (default: 20)")
-    parser.add_argument("--start",   type=str, help="Fecha inicio (YYYY-MM-DD)")
-    parser.add_argument("--end",     type=str, help="Fecha fin (YYYY-MM-DD)")
-    parser.add_argument("--compare", action="store_true", help="Comparar múltiples pares")
-    parser.add_argument("--pairs",   type=str, nargs="+", help="Pares para comparar (con --compare)")
-    parser.add_argument("--save",    action="store_true", help="Guardar gráficos en /data/")
-    parser.add_argument("--no-plot", action="store_true", help="No mostrar gráficos (solo texto)")
-    parser.add_argument("--list",    action="store_true", help="Listar pares disponibles")
+    parser.add_argument("--pair", type=str, help="Par de divisas (ej: EURUSD, USDCOP)")
+    parser.add_argument(
+        "--period",
+        type=str,
+        default="3m",
+        choices=list(PERIODS.keys()),
+        help="Período de análisis",
+    )
+    parser.add_argument(
+        "--window",
+        type=int,
+        default=20,
+        help="Ventana para métricas rolling (default: 20)",
+    )
+    parser.add_argument("--start", type=str, help="Fecha inicio (YYYY-MM-DD)")
+    parser.add_argument("--end", type=str, help="Fecha fin (YYYY-MM-DD)")
+    parser.add_argument(
+        "--compare", action="store_true", help="Comparar múltiples pares"
+    )
+    parser.add_argument(
+        "--pairs", type=str, nargs="+", help="Pares para comparar (con --compare)"
+    )
+    parser.add_argument(
+        "--save", action="store_true", help="Guardar gráficos en /data/"
+    )
+    parser.add_argument(
+        "--no-plot", action="store_true", help="No mostrar gráficos (solo texto)"
+    )
+    parser.add_argument("--list", action="store_true", help="Listar pares disponibles")
+    parser.add_argument(
+        "--verbose", action="store_true", help="Habilitar salida detallada (DEBUG)"
+    )
     return parser.parse_args()
 
 
+def setup_logging(verbose: bool):
+    """Configura el sistema de logging global."""
+    level = logging.DEBUG if verbose else logging.INFO
+    logging.basicConfig(level=level, format="%(levelname)s: %(message)s", force=True)
+
+
 def list_pairs():
-    print("\n Pares de divisas disponibles:\n")
+    logging.info("\n Pares de divisas disponibles:\n")
     for ticker, name in FOREX_PAIRS.items():
         print(f"  {ticker:<10} {name}")
     print()
@@ -73,11 +102,13 @@ def run_comparison(args):
     analyzer = ForexVolatilityAnalyzer()
 
     pairs = args.pairs if args.pairs else list(FOREX_PAIRS.keys())
-    print(f"\n Comparando {len(pairs)} pares — período: {PERIODS[args.period]['label']}\n")
+    logging.info(
+        f"\n Comparando {len(pairs)} pares — período: {PERIODS[args.period]['label']}\n"
+    )
 
     comparison = analyzer.compare_pairs(pairs, period=args.period, window=args.window)
 
-    print("\n Resumen comparativo (ordenado por volatilidad):\n")
+    logging.info("\n Resumen comparativo (ordenado por volatilidad):\n")
     print(comparison.to_string())
     print()
 
@@ -98,6 +129,7 @@ def _prompt_pair() -> str:
 
 def main():
     args = parse_args()
+    setup_logging(args.verbose)
 
     if args.list:
         list_pairs()
