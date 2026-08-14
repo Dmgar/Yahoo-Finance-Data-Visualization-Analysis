@@ -15,7 +15,12 @@ import pytest
 import pandas as pd
 import numpy as np
 
-from volatility_analyzer import ForexVolatilityAnalyzer, FOREX_PAIRS, PERIODS
+from volatility_analyzer import (
+    ForexVolatilityAnalyzer,
+    FOREX_PAIRS,
+    PERIODS,
+    normalize_pair,
+)
 
 
 #  Fixtures
@@ -54,6 +59,14 @@ class TestForexVolatilityAnalyzer:
         assert analyzer._get_ticker("EURUSD") == "EURUSD=X"
         assert analyzer._get_ticker("EUR/USD") == "EURUSD=X"
         assert analyzer._get_ticker("eur-usd") == "EURUSD=X"
+
+    @pytest.mark.parametrize(
+        "pair",
+        ["../../etc/passwd", "EURUSD/../x", "EUR", "EURUSD7", ""],
+    )
+    def test_invalid_pair_raises(self, analyzer, pair):
+        with pytest.raises(ValueError, match="no válido"):
+            analyzer._get_ticker(pair)
 
     def test_invalid_period_raises(self, analyzer):
         with pytest.raises(ValueError, match="no válido"):
@@ -168,6 +181,15 @@ class TestVolatilityReport:
 
 
 #  Tests: constantes
+
+
+class TestNormalizePair:
+    def test_normalizes_separators_and_case(self):
+        assert normalize_pair("eur/usd") == "EURUSD"
+
+    def test_rejects_path_traversal(self):
+        with pytest.raises(ValueError):
+            normalize_pair("../../etc/passwd")
 
 
 class TestConstants:
