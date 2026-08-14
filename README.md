@@ -12,6 +12,28 @@ Análisis y visualización de datos financieros obtenidos de Yahoo Finance usand
 -  Visualizaciones interactivas con Plotly
 -  Análisis fundamental de empresas
 -  Modelos predictivos básicos
+-  Análisis de volatilidad de divisas (Forex)
+-  Métricas técnicas: ATR, Bandas de Bollinger, Drawdown
+
+##  Módulos
+
+###  Forex Volatility Analyzer
+Análisis de volatilidad histórica de pares de divisas.
+
+| Archivo | Descripción |
+|---|---|
+| `forex-volatility/src/volatility_analyzer.py` | Descarga datos y calcula métricas |
+| `forex-volatility/src/plotter.py` | Visualizaciones con matplotlib |
+| `forex-volatility/main.py` | Punto de entrada CLI |
+
+**Uso rápido:**
+```bash
+cd forex-volatility
+pip install -r requirements.txt
+python main.py --pair EURUSD --period 3m
+```
+
+**Métricas incluidas:** Volatilidad histórica, ATR, Bandas de Bollinger, Drawdown, Retorno acumulado.
 
 ##  Instalación
 
