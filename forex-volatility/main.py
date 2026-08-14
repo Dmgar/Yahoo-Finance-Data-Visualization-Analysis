@@ -15,7 +15,12 @@ from pathlib import Path
 # Asegurar que src/ esté en el path
 sys.path.insert(0, str(Path(__file__).parent / "src"))
 
-from volatility_analyzer import ForexVolatilityAnalyzer, FOREX_PAIRS, PERIODS
+from volatility_analyzer import (
+    ForexVolatilityAnalyzer,
+    FOREX_PAIRS,
+    PERIODS,
+    normalize_pair,
+)
 from plotter import plot_full_analysis, plot_comparison
 from interactive_plotter import plot_interactive_analysis
 from predictor import ForexPredictor
@@ -98,11 +103,11 @@ def get_save_path(pair: str, period: str, fmt: str) -> str:
     """Genera una ruta de archivo consistente basada en el formato."""
     ext = "png" if fmt == "png" else "html"
     suffix = "analysis" if fmt == "png" else "interactive"
-    return f"data/{pair}_{period}_{suffix}.{ext}"
+    return f"data/{normalize_pair(pair)}_{period}_{suffix}.{ext}"
 
 
 def run_single_analysis(args):
-    pair = args.pair.upper() if args.pair else _prompt_pair()
+    pair = normalize_pair(args.pair) if args.pair else _prompt_pair()
     analyzer = ForexVolatilityAnalyzer()
 
     report = analyzer.analyze(
@@ -168,10 +173,11 @@ def _prompt_pair() -> str:
     """Modo interactivo si no se pasa --pair."""
     list_pairs()
     while True:
-        pair = input("Ingresa el par de divisas (ej: EURUSD): ").strip().upper()
-        if pair:
-            return pair
-        print("  Debes ingresar un par válido.")
+        pair = input("Ingresa el par de divisas (ej: EURUSD): ").strip()
+        try:
+            return normalize_pair(pair)
+        except ValueError as e:
+            print(f"  {e}")
 
 
 def main():
@@ -182,10 +188,13 @@ def main():
         list_pairs()
         return
 
-    if args.compare:
-        run_comparison(args)
-    else:
-        run_single_analysis(args)
+    try:
+        if args.compare:
+            run_comparison(args)
+        else:
+            run_single_analysis(args)
+    except ValueError as e:
+        sys.exit(f" {e}")
 
 
 if __name__ == "__main__":
