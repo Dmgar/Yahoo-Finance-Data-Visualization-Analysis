@@ -4,6 +4,7 @@ import yfinance as yf
 import pandas as pd
 import numpy as np
 import logging
+import re
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timedelta
 from typing import Optional
@@ -29,6 +30,19 @@ FOREX_PAIRS = {
     "USDCLP": "USD/CLP - Dólar Americano / Peso Chileno",
     "USDARS": "USD/ARS - Dólar Americano / Peso Argentino",
 }
+
+# Los pares se usan como ticker de Yahoo Finance y como nombre de archivo de
+# salida, por lo que solo se aceptan códigos ISO de divisa.
+PAIR_PATTERN = re.compile(r"[A-Z]{6}")
+
+
+def normalize_pair(pair: str) -> str:
+    """Valida un par y lo devuelve en su forma canónica (ej: EURUSD)."""
+    normalized = pair.upper().replace("/", "").replace("-", "")
+    if not PAIR_PATTERN.fullmatch(normalized):
+        raise ValueError(f"Par '{pair}' no válido. Usa 6 letras, ej: EURUSD.")
+    return normalized
+
 
 PERIODS = {
     "1w": {"days": 7, "label": "1 Semana"},
@@ -58,8 +72,7 @@ class ForexVolatilityAnalyzer:
         self.annualization_factor = annualization_factor
 
     def _get_ticker(self, pair: str) -> str:
-        pair = pair.upper().replace("/", "").replace("-", "")
-        return f"{pair}=X"
+        return f"{normalize_pair(pair)}=X"
 
     def fetch_data(
         self,
