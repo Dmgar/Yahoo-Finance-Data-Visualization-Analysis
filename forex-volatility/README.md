@@ -115,9 +115,15 @@ forex-volatility/
 
 ##  Ejecutar Tests
 ```bash
-pip install pytest
+pip install -r requirements.txt
 pytest tests/ -v
+
+# Con reporte de cobertura
+pytest tests/ --cov=src --cov=main --cov-report=term-missing
 ```
+
+Los tests de `tests/test_analyzer.py` descargan datos reales de Yahoo Finance;
+el resto de la suite es offline (usa fixtures sintéticas de `tests/conftest.py`).
 
 ---
 
