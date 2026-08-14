@@ -24,6 +24,7 @@ from volatility_analyzer import (
 from plotter import plot_full_analysis, plot_comparison
 from interactive_plotter import plot_interactive_analysis
 from predictor import ForexPredictor
+from utils import format_metric as _fmt
 
 logger = logging.getLogger(__name__)
 
@@ -108,11 +109,6 @@ def get_save_path(pair: str, period: str, fmt: str) -> str:
     return f"data/{normalize_pair(pair)}_{period}_{suffix}.{ext}"
 
 
-def _fmt(value, fmt: str = ".5f") -> str:
-    """Formatea una métrica de proyección que puede no estar disponible."""
-    return "N/A" if value is None else f"{value:{fmt}}"
-
-
 def run_single_analysis(args):
     pair = normalize_pair(args.pair) if args.pair else _prompt_pair()
     analyzer = ForexVolatilityAnalyzer()
@@ -148,12 +144,9 @@ def run_single_analysis(args):
         save_png = get_save_path(pair, args.period, "png") if args.save else None
         save_html = get_save_path(pair, args.period, "html") if args.save else None
 
-        if args.format == "png":
+        if args.format in ("png", "both"):
             plot_full_analysis(report, save_path=save_png, show=not args.save)
-        elif args.format == "html":
-            plot_interactive_analysis(report, save_path=save_html, show=not args.save)
-        elif args.format == "both":
-            plot_full_analysis(report, save_path=save_png, show=not args.save)
+        if args.format in ("html", "both"):
             plot_interactive_analysis(report, save_path=save_html, show=not args.save)
 
 

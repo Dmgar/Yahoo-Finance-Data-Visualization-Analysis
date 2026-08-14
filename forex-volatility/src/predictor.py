@@ -4,6 +4,7 @@ import numpy as np
 from sklearn.linear_model import LinearRegression
 from typing import Dict, Any
 from volatility_analyzer import VolatilityReport
+from utils import require_columns
 
 logger = logging.getLogger(__name__)
 
@@ -65,12 +66,12 @@ class ForexPredictor:
         """
         Calcula el rango esperado de movimiento basado en el ATR actual.
         """
-        missing = [col for col in ("Close", "atr") if col not in report.data.columns]
-        if missing:
-            raise ValueError(
-                f"El reporte de {report.pair} no incluye las columnas {missing}; "
-                "calcula las métricas de volatilidad antes de proyectar."
-            )
+        require_columns(
+            report.data,
+            ("Close", "atr"),
+            f"El reporte de {report.pair}",
+            hint="Calcula las métricas de volatilidad antes de proyectar.",
+        )
 
         # Usamos solo las columnas necesarias para evitar que NaN de otros indicadores vacíen el DF
         df_subset = report.data[["Close", "atr"]].dropna()
