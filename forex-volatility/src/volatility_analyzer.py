@@ -8,11 +8,12 @@ import re
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timedelta
 from typing import Optional
-import warnings
-
-warnings.filterwarnings("ignore")
 
 logger = logging.getLogger(__name__)
+
+
+class ForexDataError(ValueError):
+    """Datos de mercado ausentes, incompletos o imposibles de descargar."""
 
 
 # ─── Pares de divisas más comunes ───────────────────────────────────────────
@@ -34,6 +35,10 @@ FOREX_PAIRS = {
 # Los pares se usan como ticker de Yahoo Finance y como nombre de archivo de
 # salida, por lo que solo se aceptan códigos ISO de divisa.
 PAIR_PATTERN = re.compile(r"[A-Z]{6}")
+
+# Columnas que deben existir en la respuesta de Yahoo Finance para poder
+# calcular las métricas de volatilidad.
+REQUIRED_COLUMNS = ("Open", "High", "Low", "Close")
 
 
 def normalize_pair(pair: str) -> str:
@@ -83,8 +88,13 @@ class ForexVolatilityAnalyzer:
     ) -> pd.DataFrame:
         ticker = self._get_ticker(pair)
 
+        if bool(start_date) != bool(end_date):
+            raise ValueError(
+                "Debes indicar 'start_date' y 'end_date' juntos, o ninguno de los dos."
+            )
+
         if start_date and end_date:
-            df = yf.download(ticker, start=start_date, end=end_date, progress=False)
+            df = self._download(ticker, start=start_date, end=end_date)
         else:
             if period not in PERIODS:
                 raise ValueError(
@@ -93,16 +103,39 @@ class ForexVolatilityAnalyzer:
             days = PERIODS[period]["days"]
             end = datetime.today()
             start = end - timedelta(days=days)
-            df = yf.download(ticker, start=start, end=end, progress=False)
+            df = self._download(ticker, start=start, end=end)
 
         if df.empty:
-            raise ValueError(f"No se obtuvieron datos para '{pair}'.")
+            raise ForexDataError(f"No se obtuvieron datos para '{pair}'.")
 
         if isinstance(df.columns, pd.MultiIndex):
             df.columns = df.columns.get_level_values(0)
 
+        missing = [col for col in REQUIRED_COLUMNS if col not in df.columns]
+        if missing:
+            raise ForexDataError(
+                f"La respuesta de Yahoo Finance para '{pair}' no incluye las "
+                f"columnas {missing}."
+            )
+
         df.index = pd.to_datetime(df.index)
-        return df.dropna()
+        df = df.dropna()
+
+        if df.empty:
+            raise ForexDataError(
+                f"Todos los registros de '{pair}' tienen valores nulos."
+            )
+
+        return df
+
+    def _download(self, ticker: str, **kwargs) -> pd.DataFrame:
+        """Descarga datos de Yahoo Finance traduciendo fallos de red/API."""
+        try:
+            return yf.download(ticker, progress=False, **kwargs)
+        except Exception as e:
+            raise ForexDataError(
+                f"Fallo la descarga de '{ticker}' desde Yahoo Finance: {e}"
+            ) from e
 
     def calculate_volatility(self, df: pd.DataFrame, window: int = 20) -> pd.DataFrame:
         result = df.copy()
@@ -188,26 +221,32 @@ class ForexVolatilityAnalyzer:
         window: int = 20,
     ) -> pd.DataFrame:
         results = []
-
-        def _analyze_pair(pair):
-            try:
-                report = self.analyze(pair, period, window)
-                return report.get_summary_dict()
-            except Exception as e:
-                logger.error(f"Error en {pair}: {e}")
-                return None
+        failures: dict[str, Exception] = {}
 
         with ThreadPoolExecutor() as executor:
             future_to_pair = {
-                executor.submit(_analyze_pair, pair): pair for pair in pairs
+                executor.submit(self.analyze, pair, period, window): pair
+                for pair in pairs
             }
             for future in as_completed(future_to_pair):
-                res = future.result()
-                if res:
-                    results.append(res)
+                pair = future_to_pair[future]
+                try:
+                    results.append(future.result().get_summary_dict())
+                except Exception as e:
+                    failures[pair] = e
+                    logger.exception(f"Fallo el análisis de {pair}")
 
         if not results:
-            raise ValueError("No se pudo obtener datos para ningún par.")
+            detail = "; ".join(f"{pair}: {e}" for pair, e in failures.items())
+            raise ForexDataError(
+                f"No se pudo obtener datos para ningún par ({detail})."
+            ) from next(iter(failures.values()), None)
+
+        if failures:
+            logger.warning(
+                f"{len(failures)} de {len(pairs)} pares quedaron fuera de la "
+                f"comparación: {sorted(failures)}"
+            )
 
         df = pd.DataFrame(results).set_index("pair")
         return df.sort_values("volatility_annual_pct", ascending=False)
@@ -216,6 +255,11 @@ class ForexVolatilityAnalyzer:
 
 class VolatilityReport:
     def __init__(self, pair: str, period: str, window: int, data: pd.DataFrame):
+        if data.empty:
+            raise ForexDataError(
+                f"No hay datos para construir el reporte de '{pair}'."
+            )
+
         self.pair = pair.upper()
         self.period = period
         self.window = window
@@ -229,6 +273,7 @@ class VolatilityReport:
         try:
             return f"{value:{fmt}}"
         except (ValueError, TypeError):
+            logger.debug(f"Valor no formateable con '{fmt}': {value!r}", exc_info=True)
             return str(value)
 
     def summary(self) -> str:

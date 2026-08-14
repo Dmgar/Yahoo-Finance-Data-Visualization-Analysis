@@ -1,6 +1,7 @@
 """Tests unitarios para src/interactive_plotter.py."""
 
 import plotly.graph_objects as go
+import pytest
 
 from interactive_plotter import plot_interactive_analysis
 from theme import DARK_BG, GREEN, RED
@@ -77,6 +78,22 @@ class TestPlotInteractiveAnalysis:
         expected = offline_report.data["volatility_annual"].dropna() * 100
 
         assert list(vol_trace.y) == list(expected)
+
+    def test_missing_metric_column_raises(self, offline_report):
+        offline_report.data = offline_report.data.drop(columns=["volatility_annual"])
+        with pytest.raises(ValueError, match=r"\['volatility_annual'\]"):
+            plot_interactive_analysis(offline_report, show=False)
+
+    def test_report_without_valid_closes_raises(self, offline_report):
+        offline_report.data = offline_report.data.assign(Close=float("nan"))
+        with pytest.raises(ValueError, match="precios de cierre"):
+            plot_interactive_analysis(offline_report, show=False)
+
+    def test_save_path_creates_parent_dir(self, offline_report, tmp_path):
+        save_path = tmp_path / "nested" / "dashboard.html"
+        plot_interactive_analysis(offline_report, save_path=str(save_path), show=False)
+
+        assert save_path.exists()
 
     def test_save_path_writes_html(self, offline_report, tmp_path, capsys):
         save_path = tmp_path / "dashboard.html"

@@ -105,6 +105,11 @@ class TestPredictVolatilityRange:
         assert result["current_price"] == pytest.approx(1.20)
         assert result["atr"] == pytest.approx(0.02)
 
+    def test_missing_atr_column_raises(self):
+        report = build_report([1.10, 1.20])
+        with pytest.raises(ValueError, match=r"\['atr'\]"):
+            ForexPredictor().predict_volatility_range(report)
+
     def test_all_nan_atr_returns_empty_payload(self):
         report = build_report([1.10, 1.20], atr=[np.nan, np.nan])
         result = ForexPredictor().predict_volatility_range(report)
