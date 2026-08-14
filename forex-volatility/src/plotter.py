@@ -16,6 +16,21 @@ from theme import (
 )
 
 
+# Columnas que consumen los cinco paneles de plot_full_analysis.
+_PANEL_COLUMNS = (
+    "Close",
+    "log_return",
+    "volatility_annual",
+    "atr",
+    "drawdown",
+    "bb_upper",
+    "bb_mid",
+    "bb_lower",
+)
+
+_COMPARISON_COLUMNS = ("pair", "volatility_annual_pct", "cumulative_return_pct")
+
+
 def _setup_style():
     plt.rcParams.update(
         {
@@ -50,10 +65,21 @@ def plot_full_analysis(
     # Para el título y fechas, usamos los datos originales sin dropna()
     # para evitar que el DataFrame quede vacío si hay indicadores con NaN.
     full_data = report.data
-    
+
+    missing = [col for col in _PANEL_COLUMNS if col not in full_data.columns]
+    if missing:
+        raise ValueError(
+            f"El reporte de {report.pair} no incluye las columnas {missing}."
+        )
+
     # Para el trazado, limpiamos solo las filas que son totalmente NaN o 
     # que no tienen el precio de cierre.
     df = full_data.dropna(subset=["Close"])
+
+    if df.empty:
+        raise ValueError(
+            f"El reporte de {report.pair} no tiene precios de cierre válidos."
+        )
 
     fig = plt.figure(figsize=(16, 14), facecolor=DARK_BG)
     fig.suptitle(
@@ -198,6 +224,11 @@ def plot_comparison(
     _setup_style()
 
     df = comparison_df.copy().reset_index()
+
+    missing = [col for col in _COMPARISON_COLUMNS if col not in df.columns]
+    if missing:
+        raise ValueError(f"La comparación no incluye las columnas {missing}.")
+
     df = df.sort_values("volatility_annual_pct", ascending=True)
 
     fig, axes = plt.subplots(

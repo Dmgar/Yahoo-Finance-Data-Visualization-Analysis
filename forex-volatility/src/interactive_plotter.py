@@ -1,5 +1,6 @@
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
+from pathlib import Path
 from typing import Optional
 from volatility_analyzer import VolatilityReport
 from theme import DARK_BG, TEXT_COLOR, ACCENT, GREEN, RED, YELLOW, PURPLE, ORANGE
@@ -14,7 +15,17 @@ def plot_interactive_analysis(
     Genera un dashboard interactivo completo usando Plotly.
     """
     df = report.data
-    
+
+    missing = [
+        col
+        for col in ("Open", "High", "Low", "Close", "volatility_annual")
+        if col not in df.columns
+    ]
+    if missing:
+        raise ValueError(
+            f"El reporte de {report.pair} no incluye las columnas {missing}."
+        )
+
     # Crear subplots: 4 filas, 1 columna
     fig = make_subplots(
         rows=4,
@@ -33,6 +44,10 @@ def plot_interactive_analysis(
     # --- 1. Precio + SMA ---
     # Usamos una copia limpia para el precio para evitar problemas de renderizado
     df_price = df.dropna(subset=["Close"])
+    if df_price.empty:
+        raise ValueError(
+            f"El reporte de {report.pair} no tiene precios de cierre válidos."
+        )
     fig.add_trace(
         go.Candlestick(
             x=df_price.index,
@@ -139,6 +154,7 @@ def plot_interactive_analysis(
     fig.update_xaxes(rangeslider_visible=True, row=4, col=1)
 
     if save_path:
+        Path(save_path).parent.mkdir(parents=True, exist_ok=True)
         fig.write_html(save_path)
         print(f" Dashboard interactivo guardado en: {save_path}")
 

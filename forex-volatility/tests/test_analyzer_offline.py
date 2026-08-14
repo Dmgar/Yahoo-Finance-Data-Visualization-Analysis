@@ -4,13 +4,19 @@ Complementan test_analyzer.py cubriendo rutas de error y de configuración que
 requerirían red o datos incompletos.
 """
 
+import logging
+
 import numpy as np
 import pandas as pd
 import pytest
 from conftest import make_ohlc
 
 import volatility_analyzer
-from volatility_analyzer import ForexVolatilityAnalyzer, VolatilityReport
+from volatility_analyzer import (
+    ForexDataError,
+    ForexVolatilityAnalyzer,
+    VolatilityReport,
+)
 
 
 @pytest.fixture
@@ -54,7 +60,43 @@ class TestFetchData:
 
     def test_empty_response_raises(self, offline_analyzer, fake_download):
         fake_download(pd.DataFrame())
-        with pytest.raises(ValueError, match="No se obtuvieron datos"):
+        with pytest.raises(ForexDataError, match="No se obtuvieron datos"):
+            offline_analyzer.fetch_data("EURUSD", period="1m")
+
+    @pytest.mark.parametrize(
+        "dates", [{"start_date": "2024-01-01"}, {"end_date": "2024-02-01"}]
+    )
+    def test_incomplete_date_range_raises_instead_of_falling_back(
+        self, offline_analyzer, fake_download, dates
+    ):
+        calls = fake_download(make_ohlc(periods=30))
+        with pytest.raises(ValueError, match="juntos"):
+            offline_analyzer.fetch_data("EURUSD", **dates)
+
+        assert calls == []
+
+    def test_download_failure_is_wrapped_with_cause(self, offline_analyzer, monkeypatch):
+        original = ConnectionError("host inalcanzable")
+
+        def _download(ticker, **kwargs):
+            raise original
+
+        monkeypatch.setattr(volatility_analyzer.yf, "download", _download)
+        with pytest.raises(ForexDataError, match="EURUSD=X") as exc:
+            offline_analyzer.fetch_data("EURUSD", period="1m")
+
+        assert exc.value.__cause__ is original
+
+    def test_missing_ohlc_column_raises(self, offline_analyzer, fake_download):
+        fake_download(make_ohlc(periods=30).drop(columns=["High"]))
+        with pytest.raises(ForexDataError, match=r"\['High'\]"):
+            offline_analyzer.fetch_data("EURUSD", period="1m")
+
+    def test_all_null_rows_raise(self, offline_analyzer, fake_download):
+        df = make_ohlc(periods=30)
+        df["Close"] = np.nan
+        fake_download(df)
+        with pytest.raises(ForexDataError, match="valores nulos"):
             offline_analyzer.fetch_data("EURUSD", period="1m")
 
     def test_flattens_multiindex_columns(self, offline_analyzer, fake_download):
@@ -105,13 +147,40 @@ class TestComparePairsOffline:
 
         assert list(result.index) == ["EURUSD"]
 
-    def test_raises_when_every_pair_fails(self, offline_analyzer, monkeypatch):
+    def test_warns_about_skipped_pairs(
+        self, offline_analyzer, monkeypatch, offline_report, caplog
+    ):
         def _analyze(pair, *args, **kwargs):
-            raise ValueError("sin datos")
+            if pair == "GBPUSD":
+                raise ValueError("sin datos")
+            return offline_report
 
         monkeypatch.setattr(offline_analyzer, "analyze", _analyze)
-        with pytest.raises(ValueError, match="ningún par"):
+        with caplog.at_level(logging.WARNING):
             offline_analyzer.compare_pairs(["EURUSD", "GBPUSD"], period="1m")
+
+        assert "GBPUSD" in caplog.text
+
+    def test_raises_when_every_pair_fails(self, offline_analyzer, monkeypatch):
+        original = ValueError("sin datos")
+
+        def _analyze(pair, *args, **kwargs):
+            raise original
+
+        monkeypatch.setattr(offline_analyzer, "analyze", _analyze)
+        with pytest.raises(ForexDataError, match="ningún par") as exc:
+            offline_analyzer.compare_pairs(["EURUSD", "GBPUSD"], period="1m")
+
+        assert "GBPUSD: sin datos" in str(exc.value)
+        assert exc.value.__cause__ is original
+
+
+class TestReportValidation:
+    def test_empty_data_raises(self):
+        with pytest.raises(ForexDataError, match="No hay datos"):
+            VolatilityReport(
+                pair="EURUSD", period="1m", window=20, data=pd.DataFrame()
+            )
 
 
 class TestReportFormatting:
