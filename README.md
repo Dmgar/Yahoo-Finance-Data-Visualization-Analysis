@@ -9,35 +9,39 @@ Análisis y visualización de datos financieros obtenidos de Yahoo Finance usand
 
 ### ✅ Implementado
 - **Análisis de volatilidad de divisas (Forex):** Cálculo de volatilidad histórica, ATR, Bandas de Bollinger, Drawdown y Retorno acumulado.
+- **Indicadores Técnicos Avanzados:** Implementación de RSI, MACD y Medias Móviles (SMA/EMA 20, 50, 200).
+- **Visualizaciones Profesionales:** 
+    - Gráficos estáticos detallados (Matplotlib).
+    - Dashboards interactivos con velas japonesas y sincronización de ejes (Plotly).
+- **Modelos Predictivos:** Proyecciones básicas de tendencia y rangos de volatilidad esperada.
+- **Optimización:** Carga paralela de datos y sistema de logging profesional.
 - **Descarga de datos:** Extracción automatizada de datos históricos desde Yahoo Finance.
-- **Visualizaciones:** Gráficos detallados de análisis y comparativas entre múltiples pares.
-- **Carga Paralela:** Optimización en la descarga de múltiples activos.
 
 ### 🚀 Roadmap (En desarrollo)
-- **Indicadores técnicos:** Implementación de RSI, MACD y medias móviles.
-- **Visualizaciones interactivas:** Migración a Plotly para análisis dinámicos.
 - **Análisis fundamental:** Módulo para análisis de estados financieros de empresas.
-- **Modelos predictivos:** Implementación de modelos básicos de predicción de precios.
+- **Modelos predictivos avanzados:** Implementación de modelos de series temporales (ARIMA/LSTM).
 
 ##  Módulos
 
 ###  Forex Volatility Analyzer
-Análisis de volatilidad histórica de pares de divisas.
+Análisis de volatilidad y tendencia de pares de divisas.
 
 | Archivo | Descripción |
 |---|---|
-| `forex-volatility/src/volatility_analyzer.py` | Descarga datos y calcula métricas |
-| `forex-volatility/src/plotter.py` | Visualizaciones con matplotlib |
+| `forex-volatility/src/volatility_analyzer.py` | Lógica principal: descarga, métricas y técnicos |
+| `forex-volatility/src/plotter.py` | Visualizaciones estáticas (Matplotlib) |
+| `forex-volatility/src/interactive_plotter.py` | Dashboards interactivos (Plotly) |
+| `forex-volatility/src/predictor.py` | Modelos de proyección y tendencia |
 | `forex-volatility/main.py` | Punto de entrada CLI |
 
 **Uso rápido:**
 ```bash
 cd forex-volatility
 pip install -r requirements.txt
-python main.py --pair EURUSD --period 3m
+python main.py --pair EURUSD --format html --indicators --predict
 ```
 
-**Métricas incluidas:** Volatilidad histórica, ATR, Bandas de Bollinger, Drawdown, Retorno acumulado.
+**Métricas incluidas:** Volatilidad histórica, ATR, Bandas de Bollinger, Drawdown, Retorno acumulado, RSI, MACD, SMA/EMA.
 
 ##  Instalación
 
@@ -52,3 +56,4 @@ source venv/bin/activate  # En Windows: venv\Scripts\activate
 
 # Instalar dependencias
 pip install -r requirements.txt
+```
