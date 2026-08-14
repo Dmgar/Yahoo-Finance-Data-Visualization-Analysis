@@ -192,6 +192,34 @@ class TestRunSingleAnalysis:
 
         assert "PROYECCIONES" not in capsys.readouterr().out
 
+    def test_unavailable_projection_prints_na(
+        self, cli_args, analyzer_calls, stub_plots, monkeypatch, capsys
+    ):
+        class StubPredictor:
+            def get_full_projection(self, report):
+                return {
+                    "trend": {
+                        "trend": "Insuficientes datos",
+                        "pct_change": None,
+                        "projected_price": None,
+                        "days": 5,
+                    },
+                    "volatility": {
+                        "expected_lower": None,
+                        "expected_upper": None,
+                        "range_pct": None,
+                    },
+                }
+
+        monkeypatch.setattr(main, "ForexPredictor", StubPredictor)
+        main.run_single_analysis(cli_args("--pair", "EURUSD", "--predict", "--no-plot"))
+        out = capsys.readouterr().out
+
+        assert "Insuficientes datos (N/A%)" in out
+        assert "Precio Proyectado        : N/A" in out
+        assert "Rango Esperado (ATR)     : N/A → N/A" in out
+        assert "Variación Esperada       : N/A%" in out
+
     def test_invalid_pair_raises(self, cli_args, analyzer_calls, stub_plots):
         with pytest.raises(ValueError, match="no válido"):
             main.run_single_analysis(cli_args("--pair", "EUR"))
@@ -203,7 +231,24 @@ class TestRunSingleAnalysis:
         assert analyzer_calls[0]["pair"] == "GBPUSD"
 
 
+class TestFmt:
+    def test_formats_available_value(self):
+        assert main._fmt(1.2, "+.2f") == "+1.20"
+
+    def test_returns_na_for_missing_value(self):
+        assert main._fmt(None) == "N/A"
+
+
 class TestPromptPair:
+    @pytest.mark.parametrize("error", [EOFError, KeyboardInterrupt])
+    def test_aborts_when_input_is_interrupted(self, monkeypatch, error):
+        def _input(*a):
+            raise error
+
+        monkeypatch.setattr("builtins.input", _input)
+        with pytest.raises(SystemExit, match="cancelada"):
+            main._prompt_pair()
+
     def test_reprompts_until_pair_is_valid(self, monkeypatch, capsys):
         answers = iter(["", "EUR", " eurusd "])
         monkeypatch.setattr("builtins.input", lambda *a: next(answers))
@@ -289,3 +334,28 @@ class TestMain:
             main.main()
 
         assert "sin datos" in str(exc.value)
+
+    def test_unexpected_error_is_reported_and_logged(self, monkeypatch, capsys):
+        monkeypatch.setattr(main.sys, "argv", ["main.py", "--pair", "EURUSD"])
+
+        def boom(args):
+            raise KeyError("bb_upper")
+
+        monkeypatch.setattr(main, "run_single_analysis", boom)
+        with pytest.raises(SystemExit) as exc:
+            main.main()
+
+        assert "KeyError" in str(exc.value)
+        assert "Traceback" in capsys.readouterr().err
+
+    def test_keyboard_interrupt_exits_cleanly(self, monkeypatch):
+        monkeypatch.setattr(main.sys, "argv", ["main.py", "--pair", "EURUSD"])
+
+        def boom(args):
+            raise KeyboardInterrupt
+
+        monkeypatch.setattr(main, "run_single_analysis", boom)
+        with pytest.raises(SystemExit) as exc:
+            main.main()
+
+        assert "Interrumpido" in str(exc.value)

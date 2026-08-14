@@ -81,6 +81,16 @@ class TestPlotFullAnalysis:
 
         assert list(tmp_path.iterdir()) == []
 
+    def test_missing_metric_column_raises(self, offline_report):
+        offline_report.data = offline_report.data.drop(columns=["atr"])
+        with pytest.raises(ValueError, match=r"\['atr'\]"):
+            plot_full_analysis(offline_report, show=False)
+
+    def test_report_without_valid_closes_raises(self, offline_report):
+        offline_report.data = offline_report.data.assign(Close=float("nan"))
+        with pytest.raises(ValueError, match="precios de cierre"):
+            plot_full_analysis(offline_report, show=False)
+
 
 class TestPlotComparison:
     def test_returns_figure_with_three_panels(self, comparison_df):
@@ -116,6 +126,10 @@ class TestPlotComparison:
         fig = plot_comparison(comparison_df.head(1), show=False)
 
         assert len(fig.axes[0].patches) == 1
+
+    def test_missing_comparison_column_raises(self, comparison_df):
+        with pytest.raises(ValueError, match=r"\['cumulative_return_pct'\]"):
+            plot_comparison(comparison_df.drop(columns=["cumulative_return_pct"]), show=False)
 
     def test_save_path_writes_png(self, comparison_df, tmp_path, capsys):
         save_path = tmp_path / "out" / "comparison.png"

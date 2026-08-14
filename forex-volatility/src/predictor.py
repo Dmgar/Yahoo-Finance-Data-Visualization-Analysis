@@ -1,7 +1,11 @@
+import logging
+
 import numpy as np
 from sklearn.linear_model import LinearRegression
 from typing import Dict, Any
 from volatility_analyzer import VolatilityReport
+
+logger = logging.getLogger(__name__)
 
 
 class ForexPredictor:
@@ -21,6 +25,10 @@ class ForexPredictor:
         df_close = report.data[["Close"]].dropna()
         
         if len(df_close) < 2:
+            logger.warning(
+                f"{report.pair}: solo {len(df_close)} cierres válidos; "
+                "no se puede proyectar la tendencia."
+            )
             return {"trend": "Insuficientes datos", "pct_change": 0, "projected_price": None, "days": self.projection_days}
 
         # Usamos los últimos 30 días disponibles
@@ -39,7 +47,11 @@ class ForexPredictor:
         current_price = y[-1]
         projected_price = predictions[-1]
         trend = "Alcista" if projected_price > current_price else "Bajista"
-        pct_change = ((projected_price - current_price) / current_price) * 100
+        pct_change = (
+            ((projected_price - current_price) / current_price) * 100
+            if current_price
+            else None
+        )
         
         return {
             "current_price": current_price,
@@ -53,10 +65,21 @@ class ForexPredictor:
         """
         Calcula el rango esperado de movimiento basado en el ATR actual.
         """
+        missing = [col for col in ("Close", "atr") if col not in report.data.columns]
+        if missing:
+            raise ValueError(
+                f"El reporte de {report.pair} no incluye las columnas {missing}; "
+                "calcula las métricas de volatilidad antes de proyectar."
+            )
+
         # Usamos solo las columnas necesarias para evitar que NaN de otros indicadores vacíen el DF
         df_subset = report.data[["Close", "atr"]].dropna()
         
         if df_subset.empty:
+            logger.warning(
+                f"{report.pair}: sin filas con precio y ATR simultáneos; "
+                "no se puede estimar el rango esperado."
+            )
             return {"current_price": None, "atr": None, "expected_lower": None, "expected_upper": None, "range_pct": None}
             
         current_price = df_subset["Close"].iloc[-1]
@@ -71,7 +94,7 @@ class ForexPredictor:
             "atr": current_atr,
             "expected_lower": lower_bound,
             "expected_upper": upper_bound,
-            "range_pct": (current_atr / current_price) * 100
+            "range_pct": (current_atr / current_price) * 100 if current_price else None,
         }
 
     def get_full_projection(self, report: VolatilityReport) -> Dict[str, Any]:

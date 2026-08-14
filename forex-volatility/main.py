@@ -25,6 +25,8 @@ from plotter import plot_full_analysis, plot_comparison
 from interactive_plotter import plot_interactive_analysis
 from predictor import ForexPredictor
 
+logger = logging.getLogger(__name__)
+
 
 def parse_args():
     parser = argparse.ArgumentParser(
@@ -106,6 +108,11 @@ def get_save_path(pair: str, period: str, fmt: str) -> str:
     return f"data/{normalize_pair(pair)}_{period}_{suffix}.{ext}"
 
 
+def _fmt(value, fmt: str = ".5f") -> str:
+    """Formatea una métrica de proyección que puede no estar disponible."""
+    return "N/A" if value is None else f"{value:{fmt}}"
+
+
 def run_single_analysis(args):
     pair = normalize_pair(args.pair) if args.pair else _prompt_pair()
     analyzer = ForexVolatilityAnalyzer()
@@ -131,10 +138,10 @@ def run_single_analysis(args):
         print("\n" + "═" * 55)
         print(f"   PROYECCIONES BÁSICAS — {pair}")
         print("═" * 55)
-        print(f"  Tendencia ({trend['days']}d)    : {trend['trend']} ({trend['pct_change']:+.2f}%)")
-        print(f"  Precio Proyectado        : {trend['projected_price']:.5f}")
-        print(f"  Rango Esperado (ATR)     : {vol['expected_lower']:.5f} → {vol['expected_upper']:.5f}")
-        print(f"  Variación Esperada       : {vol['range_pct']:.3f}%")
+        print(f"  Tendencia ({trend['days']}d)    : {trend['trend']} ({_fmt(trend['pct_change'], '+.2f')}%)")
+        print(f"  Precio Proyectado        : {_fmt(trend['projected_price'])}")
+        print(f"  Rango Esperado (ATR)     : {_fmt(vol['expected_lower'])} → {_fmt(vol['expected_upper'])}")
+        print(f"  Variación Esperada       : {_fmt(vol['range_pct'], '.3f')}%")
         print("═" * 55 + "\n")
 
     if not args.no_plot:
@@ -173,7 +180,10 @@ def _prompt_pair() -> str:
     """Modo interactivo si no se pasa --pair."""
     list_pairs()
     while True:
-        pair = input("Ingresa el par de divisas (ej: EURUSD): ").strip()
+        try:
+            pair = input("Ingresa el par de divisas (ej: EURUSD): ").strip()
+        except (EOFError, KeyboardInterrupt):
+            raise SystemExit("\n Entrada cancelada; no se seleccionó ningún par.")
         try:
             return normalize_pair(pair)
         except ValueError as e:
@@ -194,7 +204,13 @@ def main():
         else:
             run_single_analysis(args)
     except ValueError as e:
+        logger.debug("Análisis abortado", exc_info=True)
         sys.exit(f" {e}")
+    except KeyboardInterrupt:
+        sys.exit(" Interrumpido por el usuario.")
+    except Exception as e:
+        logger.exception("Error inesperado durante el análisis")
+        sys.exit(f" Error inesperado ({type(e).__name__}): {e}")
 
 
 if __name__ == "__main__":
