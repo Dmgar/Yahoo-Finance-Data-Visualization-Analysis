@@ -9,6 +9,8 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timedelta
 from typing import Optional
 
+from utils import format_metric, require_columns, round_or_none
+
 logger = logging.getLogger(__name__)
 
 
@@ -111,12 +113,12 @@ class ForexVolatilityAnalyzer:
         if isinstance(df.columns, pd.MultiIndex):
             df.columns = df.columns.get_level_values(0)
 
-        missing = [col for col in REQUIRED_COLUMNS if col not in df.columns]
-        if missing:
-            raise ForexDataError(
-                f"La respuesta de Yahoo Finance para '{pair}' no incluye las "
-                f"columnas {missing}."
-            )
+        require_columns(
+            df,
+            REQUIRED_COLUMNS,
+            f"La respuesta de Yahoo Finance para '{pair}'",
+            error_type=ForexDataError,
+        )
 
         df.index = pd.to_datetime(df.index)
         df = df.dropna()
@@ -266,15 +268,7 @@ class VolatilityReport:
         self.data = data
         self._last = data.iloc[-1]
 
-    def _fmt(self, value, fmt=".5f") -> str:
-        """Formatea un valor, devolviendo 'N/A' si es NaN."""
-        if pd.isna(value):
-            return "N/A"
-        try:
-            return f"{value:{fmt}}"
-        except (ValueError, TypeError):
-            logger.debug(f"Valor no formateable con '{fmt}': {value!r}", exc_info=True)
-            return str(value)
+    _fmt = staticmethod(format_metric)
 
     def summary(self) -> str:
         d = self._last
@@ -308,14 +302,16 @@ class VolatilityReport:
 
     def get_summary_dict(self) -> dict:
         d = self._last
+        cumulative_return = self.data["cumulative_return"].iloc[-1]
+        max_drawdown = self.data["drawdown"].min()
         return {
             "pair": self.pair,
-            "price": round(float(d["Close"]), 5) if not pd.isna(d["Close"]) else None,
-            "volatility_daily_pct": round(float(d["volatility_daily"]) * 100, 4) if not pd.isna(d["volatility_daily"]) else None,
-            "volatility_annual_pct": round(float(d["volatility_annual"]) * 100, 2) if not pd.isna(d["volatility_annual"]) else None,
-            "atr": round(float(d["atr"]), 5) if not pd.isna(d["atr"]) else None,
-            "bb_width_pct": round(float(d["bb_width"]) * 100, 4) if not pd.isna(d["bb_width"]) else None,
-            "cumulative_return_pct": round(float(self.data["cumulative_return"].iloc[-1]) * 100, 2) if not pd.isna(self.data["cumulative_return"].iloc[-1]) else None,
-            "max_drawdown_pct": round(float(self.data["drawdown"].min()) * 100, 2) if not pd.isna(self.data["drawdown"].min()) else None,
+            "price": round_or_none(d["Close"], 5),
+            "volatility_daily_pct": round_or_none(d["volatility_daily"] * 100, 4),
+            "volatility_annual_pct": round_or_none(d["volatility_annual"] * 100, 2),
+            "atr": round_or_none(d["atr"], 5),
+            "bb_width_pct": round_or_none(d["bb_width"] * 100, 4),
+            "cumulative_return_pct": round_or_none(cumulative_return * 100, 2),
+            "max_drawdown_pct": round_or_none(max_drawdown * 100, 2),
             "n_observations": len(self.data),
         }

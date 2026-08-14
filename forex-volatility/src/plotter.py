@@ -7,13 +7,14 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
 import matplotlib.dates as mdates
-from pathlib import Path
+from collections.abc import Callable
 from typing import Optional
 
 from volatility_analyzer import VolatilityReport
 from theme import (
     DARK_BG, PANEL_BG, GRID_COLOR, TEXT_COLOR, ACCENT, GREEN, RED, YELLOW, PURPLE, ORANGE, FONT_FAMILY
 )
+from utils import require_close_prices, require_columns, save_output
 
 
 # Columnas que consumen los cinco paneles de plot_full_analysis.
@@ -66,20 +67,9 @@ def plot_full_analysis(
     # para evitar que el DataFrame quede vacío si hay indicadores con NaN.
     full_data = report.data
 
-    missing = [col for col in _PANEL_COLUMNS if col not in full_data.columns]
-    if missing:
-        raise ValueError(
-            f"El reporte de {report.pair} no incluye las columnas {missing}."
-        )
+    require_columns(full_data, _PANEL_COLUMNS, f"El reporte de {report.pair}")
 
-    # Para el trazado, limpiamos solo las filas que son totalmente NaN o 
-    # que no tienen el precio de cierre.
-    df = full_data.dropna(subset=["Close"])
-
-    if df.empty:
-        raise ValueError(
-            f"El reporte de {report.pair} no tiene precios de cierre válidos."
-        )
+    df = require_close_prices(full_data, report.pair)
 
     fig = plt.figure(figsize=(16, 14), facecolor=DARK_BG)
     fig.suptitle(
@@ -195,9 +185,7 @@ def plot_full_analysis(
     plt.tight_layout(rect=[0, 0, 1, 0.97])
 
     if save_path:
-        Path(save_path).parent.mkdir(parents=True, exist_ok=True)
-        fig.savefig(save_path, dpi=150, bbox_inches="tight", facecolor=DARK_BG)
-        print(f" Gráfico guardado en: {save_path}")
+        save_output(save_path, _figure_writer(fig), "Gráfico guardado")
 
     if show:
         plt.show()
@@ -225,9 +213,7 @@ def plot_comparison(
 
     df = comparison_df.copy().reset_index()
 
-    missing = [col for col in _COMPARISON_COLUMNS if col not in df.columns]
-    if missing:
-        raise ValueError(f"La comparación no incluye las columnas {missing}.")
+    require_columns(df, _COMPARISON_COLUMNS, "La comparación")
 
     df = df.sort_values("volatility_annual_pct", ascending=True)
 
@@ -333,14 +319,19 @@ def plot_comparison(
     plt.tight_layout()
 
     if save_path:
-        Path(save_path).parent.mkdir(parents=True, exist_ok=True)
-        fig.savefig(save_path, dpi=150, bbox_inches="tight", facecolor=DARK_BG)
-        print(f" Comparación guardada en: {save_path}")
+        save_output(save_path, _figure_writer(fig), "Comparación guardada")
 
     if show:
         plt.show()
 
     return fig
+
+
+def _figure_writer(fig: plt.Figure) -> Callable[[str], None]:
+    def write(path: str) -> None:
+        fig.savefig(path, dpi=150, bbox_inches="tight", facecolor=DARK_BG)
+
+    return write
 
 
 def _add_watermark(ax):
