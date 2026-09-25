@@ -9,7 +9,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timedelta
 from typing import Optional
 
-from utils import format_metric, require_columns, round_or_none
+from src.utils import format_metric, require_columns, round_or_none
 
 logger = logging.getLogger(__name__)
 

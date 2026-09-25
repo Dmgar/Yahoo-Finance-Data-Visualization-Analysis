@@ -1,59 +1,50 @@
-#  Yahoo Finance Data Visualization & Analysis
+# Forex Volatility Dashboard
 
 [![Python](https://img.shields.io/badge/Python-3.8+-blue.svg)](https://www.python.org/)
-[![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+[![Next.js](https://img.shields.io/badge/Next.js-15-black.svg)](https://nextjs.org/)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.115+-green.svg)](https://fastapi.tiangolo.com/)
 
-Análisis y visualización de datos financieros obtenidos de Yahoo Finance usando Python.
+Plataforma moderna para el análisis y visualización de datos financieros obtenidos de Yahoo Finance, enfocada en la medición de volatilidad y análisis técnico avanzado de divisas.
 
-##  Características
+## Características y Arquitectura
 
-### Implementado
-- **Análisis de volatilidad de divisas (Forex):** Cálculo de volatilidad histórica, ATR, Bandas de Bollinger, Drawdown y Retorno acumulado.
-- **Indicadores Técnicos Avanzados:** Implementación de RSI, MACD y Medias Móviles (SMA/EMA 20, 50, 200).
-- **Visualizaciones Profesionales:** 
-    - Gráficos estáticos detallados (Matplotlib).
-    - Dashboards interactivos con velas japonesas y sincronización de ejes (Plotly).
-- **Modelos Predictivos:** Proyecciones básicas de tendencia y rangos de volatilidad esperada.
-- **Optimización:** Carga paralela de datos y sistema de logging profesional.
-- **Descarga de datos:** Extracción automatizada de datos históricos desde Yahoo Finance.
+El proyecto está diseñado bajo una arquitectura estructurada (*Monorepo*), separando claramente la lógica de negocio y la presentación visual:
 
-### Roadmap (En desarrollo)
-- **Análisis fundamental:** Módulo para análisis de estados financieros de empresas.
-- **Modelos predictivos avanzados:** Implementación de modelos de series temporales (ARIMA/LSTM).
+### Frontend
+- Desarrollado con **Next.js** y **React**.
+- Estilizado con **Tailwind CSS v4**, empleando efectos visuales modernos como *Glassmorphism*.
+- Gráficos fluidos e interactivos con **Recharts** (Area charts con degradados, Bandas de Bollinger integradas).
 
-##  Módulos
+### Backend
+- API REST de alto rendimiento impulsada por **FastAPI**.
+- Manejo de dependencias y entornos ultrarrápido gracias a **uv** (el gestor escrito en Rust).
+- **Métricas Matemáticas:** Cálculo dinámico de volatilidad anualizada, Average True Range (ATR), Drawdowns, MACD y RSI mediante la potente librería de Pandas.
 
-###  Forex Volatility Analyzer
-Análisis de volatilidad y tendencia de pares de divisas.
+## Instalación y Uso
 
-| Archivo | Descripción |
-|---|---|
-| `forex-volatility/src/volatility_analyzer.py` | Lógica principal: descarga, métricas y técnicos |
-| `forex-volatility/src/plotter.py` | Visualizaciones estáticas (Matplotlib) |
-| `forex-volatility/src/interactive_plotter.py` | Dashboards interactivos (Plotly) |
-| `forex-volatility/src/predictor.py` | Modelos de proyección y tendencia |
-| `forex-volatility/main.py` | Punto de entrada CLI |
+Asegúrate de tener Node.js y [uv](https://github.com/astral-sh/uv) instalados en tu equipo.
 
-**Uso rápido:**
+### 1. Iniciar el Backend
 ```bash
-cd forex-volatility
-pip install -r requirements.txt
-python main.py --pair EURUSD --format html --indicators --predict
+cd backend
+uv sync
+uv run uvicorn main:app --reload
 ```
+La API estará esperando peticiones en `http://127.0.0.1:8000`.
 
-**Métricas incluidas:** Volatilidad histórica, ATR, Bandas de Bollinger, Drawdown, Retorno acumulado, RSI, MACD, SMA/EMA.
-
-##  Instalación
-
+### 2. Iniciar el Frontend
+En una pestaña nueva de tu terminal:
 ```bash
-# Clonar el repositorio
-git clone https://github.com/Dmgar/Yahoo-Finance-Data-Visualization-Analysis.git
-cd Yahoo-Finance-Data-Visualization-Analysis
-
-# Crear entorno virtual
-python -m venv venv
-source venv/bin/activate  # En Windows: venv\Scripts\activate
-
-# Instalar dependencias
-pip install -r requirements.txt
+cd frontend
+npm install
+npm run dev
 ```
+Visita `http://localhost:3000` en tu navegador para ver el dashboard en acción.
+
+## Roadmap (Próximos Pasos)
+
+El proyecto se encuentra en activa evolución. Las próximas actualizaciones incluirán:
+
+- [ ] **Datos en Tiempo Real:** Integración de **WebSockets** para visualizar oscilaciones de precios al instante sin necesidad de recargar ni presionar botones de refresco.
+- [ ] **Soporte para Criptomonedas:** Expansión del catálogo de análisis para incluir activos digitales (ej. BTC/USD, ETH/USD) conectando con múltiples *exchanges*.
+- [ ] **Modelos Predictivos Avanzados:** Implementación de modelos de **Inteligencia Artificial y Machine Learning** para predecir tendencias y alertar sobre rupturas de volatilidad inminentes.
