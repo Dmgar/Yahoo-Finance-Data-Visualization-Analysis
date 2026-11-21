@@ -1,10 +1,10 @@
-"""Tests unitarios para el CLI (main.py), con red y gráficos simulados."""
+"""Tests unitarios para el CLI (cli.py), con red y gráficos simulados."""
 
 import logging
 
 import pytest
 
-import main
+import cli as main
 
 
 @pytest.fixture

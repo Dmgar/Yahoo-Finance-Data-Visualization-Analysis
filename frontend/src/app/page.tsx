@@ -1,12 +1,50 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Area, AreaChart } from "recharts";
-import { TrendingUp, TrendingDown, Activity, DollarSign, RefreshCw, BarChart2, Search, Bell, Menu, ArrowUpRight, ArrowDownRight } from "lucide-react";
+import { Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Area, AreaChart } from "recharts";
+import { Activity, DollarSign, RefreshCw, BarChart2, Search, Bell, ArrowUpRight, ArrowDownRight } from "lucide-react";
+
+interface ChartPoint {
+  Date: string;
+  Close: number;
+  sma_20?: number | null;
+  bb_upper?: number | null;
+  bb_lower?: number | null;
+  rsi?: number | null;
+  macd?: number | null;
+}
+
+interface AnalysisSummary {
+  price: number;
+  cumulative_return_pct: number | null;
+  volatility_annual_pct: number | null;
+  bb_width_pct: number | null;
+}
+
+interface AnalysisData {
+  status: string;
+  summary: AnalysisSummary;
+  chart_data: ChartPoint[];
+}
+
+async function requestAnalysis(
+  pair: string,
+  period: string,
+  signal?: AbortSignal
+): Promise<AnalysisData | null> {
+  const res = await fetch("http://127.0.0.1:8000/api/analyze", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ pair, period, window: 20, indicators: true }),
+    signal,
+  });
+  const json: AnalysisData = await res.json();
+  return json.status === "success" ? json : null;
+}
 
 export default function Dashboard() {
-  const [data, setData] = useState<any>(null);
-  const [loading, setLoading] = useState(false);
+  const [data, setData] = useState<AnalysisData | null>(null);
+  const [loading, setLoading] = useState(true);
   const [selectedPair, setSelectedPair] = useState("EURUSD");
   const [selectedPeriod, setSelectedPeriod] = useState("3m");
   const [showNotifications, setShowNotifications] = useState(false);
@@ -19,27 +57,57 @@ export default function Dashboard() {
     { id: "USDCHF", name: "USD/CHF", region: "US/CH" }
   ];
 
-  const fetchData = async (pair: string, period: string) => {
+  useEffect(() => {
+    const controller = new AbortController();
+    let cancelled = false;
+
+    requestAnalysis(selectedPair, selectedPeriod, controller.signal)
+      .then((result) => {
+        if (!cancelled && result) {
+          setData(result);
+        }
+      })
+      .catch((error: unknown) => {
+        if (error instanceof DOMException && error.name === "AbortError") {
+          return;
+        }
+        console.error("Failed to fetch data:", error);
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+      controller.abort();
+    };
+  }, [selectedPair, selectedPeriod]);
+
+  const handleSelectPair = (pairId: string) => {
+    setLoading(true);
+    setSelectedPair(pairId);
+  };
+
+  const handleSelectPeriod = (period: string) => {
+    setLoading(true);
+    setSelectedPeriod(period);
+  };
+
+  const handleRefresh = async () => {
     setLoading(true);
     try {
-      const res = await fetch("http://127.0.0.1:8000/api/analyze", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ pair, period: period, window: 20, indicators: true })
-      });
-      const json = await res.json();
-      if (json.status === "success") {
-        setData(json);
+      const result = await requestAnalysis(selectedPair, selectedPeriod);
+      if (result) {
+        setData(result);
       }
     } catch (error) {
       console.error("Failed to fetch data:", error);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
-
-  useEffect(() => {
-    fetchData(selectedPair, selectedPeriod);
-  }, [selectedPair, selectedPeriod]);
 
   return (
     <div className="min-h-screen bg-background text-foreground flex flex-col font-sans selection:bg-cyan-500/30">
@@ -110,7 +178,7 @@ export default function Dashboard() {
                 Pairs
               </h2>
               <button 
-                onClick={() => fetchData(selectedPair)}
+                onClick={handleRefresh}
                 className="p-2 rounded-full bg-white/5 hover:bg-white/10 transition-colors"
                 title="Refresh Data"
               >
@@ -122,7 +190,7 @@ export default function Dashboard() {
               {pairs.map((pair) => (
                 <button
                   key={pair.id}
-                  onClick={() => setSelectedPair(pair.id)}
+                  onClick={() => handleSelectPair(pair.id)}
                   className={`relative p-4 rounded-2xl flex justify-between items-center transition-all duration-300 overflow-hidden ${
                     selectedPair === pair.id 
                       ? 'bg-gradient-to-r from-cyan-500/20 to-purple-500/10 border border-cyan-500/40 shadow-[0_4px_20px_rgba(6,182,212,0.15)]' 
@@ -198,10 +266,10 @@ export default function Dashboard() {
               <div className="absolute -bottom-6 -right-6 w-24 h-24 bg-cyan-500/20 blur-2xl rounded-full group-hover:bg-cyan-500/30 transition-all"></div>
               <p className="text-sm font-medium text-zinc-400">Total Return ({selectedPeriod.toUpperCase()})</p>
               <div className="flex items-center gap-3 mt-2">
-                <h3 className={`text-4xl font-bold font-mono ${data?.summary?.cumulative_return_pct >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                <h3 className={`text-4xl font-bold font-mono ${(data?.summary?.cumulative_return_pct ?? 0) >= 0 ? 'text-green-400' : 'text-red-400'}`}>
                   {data && data.summary.cumulative_return_pct !== null ? `${data.summary.cumulative_return_pct}%` : '--'}
                 </h3>
-                {data?.summary?.cumulative_return_pct >= 0 ? 
+                {(data?.summary?.cumulative_return_pct ?? 0) >= 0 ? 
                   <ArrowUpRight className="w-8 h-8 text-green-400 opacity-80" /> : 
                   <ArrowDownRight className="w-8 h-8 text-red-400 opacity-80" />
                 }
@@ -234,7 +302,7 @@ export default function Dashboard() {
                 {['1w', '1m', '3m', '6m', '1y'].map(tf => (
                   <button 
                     key={tf} 
-                    onClick={() => setSelectedPeriod(tf)}
+                    onClick={() => handleSelectPeriod(tf)}
                     className={`px-4 py-1.5 rounded-lg text-xs font-semibold uppercase transition-all ${selectedPeriod === tf ? 'bg-zinc-800 text-white shadow-sm border border-white/10' : 'text-zinc-400 hover:text-zinc-200 border border-transparent'}`}
                   >
                     {tf}

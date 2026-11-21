@@ -16,3 +16,9 @@ dependencies = [
     "uvicorn>=0.54.0",
     "yfinance>=1.7.0",
 ]
+
+[tool.uv]
+constraint-dependencies = [
+    "pillow>=13.0.0",
+    "certifi>=2026.10.23",
+]
